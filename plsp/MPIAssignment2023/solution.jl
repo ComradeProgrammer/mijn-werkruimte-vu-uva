@@ -75,11 +75,11 @@ function floyd_worker_barrier!(Cw,comm)
     rank = MPI.Comm_rank(comm)
     start_row = m*rank+1
     end_row = m*(rank+1)
+    row_k = similar(Cw,n)
     for k in 1:n
         # find correct row k first
-        row_k = similar(Cw,n)
         if start_row<=k && k<=end_row
-            @inbounds row_k=Cw[k-start_row+1,:]
+            @inbounds row_k.=view(Cw,k-start_row+1,:)
             # send out the row_k
             for proc in 0:(nranks-1)
                 if rank != proc
@@ -96,7 +96,9 @@ function floyd_worker_barrier!(Cw,comm)
             end
         end
         # wait for all other processes in this round
-        MPI.Barrier(comm)
+        if k%m==0
+            MPI.Barrier(comm)
+        end
     end
 
 end
@@ -105,6 +107,26 @@ function floyd_worker_bcast!(Cw,comm)
     # Implement here your solution for method 2 of Floyd's parallel algotrithm #
     # Attetion: the worker who is sending needs be the root of the Broadcast #
     # You are only allowed to use the MPI.Bcast! collective for this part #
+    m,n = size(Cw)
+    nranks = MPI.Comm_size(comm)
+    rank = MPI.Comm_rank(comm)
+    start_row = m*rank+1
+    end_row = m*(rank+1)
+    row_k = similar(Cw,n)
+    for k in 1:n
+        # find correct row k first
+        if start_row<=k && k<=end_row
+            @inbounds row_k.=view(Cw,k-start_row+1,:)
+        end
+        MPI.Bcast!(row_k,div(k-1,m),comm)
+        # floyd method
+        for j in 1:n
+            for i in 1:m
+                @inbounds Cw[i,j] = min(Cw[i,j],Cw[i,k]+row_k[j])
+            end
+        end
+       
+    end
     
 end
 
@@ -114,6 +136,41 @@ function floyd_worker_status!(Cw,comm)
     # Your MPI.Recv! can only use  MPI.ANY_SOURCE as source, and MPI.ANY_TAG as tag values #
     # You can use MPI.STATUS in your MPI.RECV! #
     # You are only allowed to use MPI.Send and MPI.Recv! and MPI.Status #
+    m,n = size(Cw)
+    nranks = MPI.Comm_size(comm)
+    rank = MPI.Comm_rank(comm)
+    start_row = m*rank+1
+    end_row = m*(rank+1)
+    row_k = similar(Cw,n)
+    T = eltype(Cw)
+    cache = Vector{Vector{T}}(undef,n)
+    for k in 1:n
+        # find correct row k first
+        if start_row<=k && k<=end_row
+            @inbounds row_k.=view(Cw,k-start_row+1,:)
+            # send out the row_k
+            for proc in 0:(nranks-1)
+                if rank != proc
+                    MPI.Send(row_k,comm;dest=proc,tag=k)
+                    
+                end
+            end
+        else
+            while !isassigned(cache,k)
+                (_,status)=MPI.Recv!(row_k,MPI.ANY_SOURCE,MPI.ANY_TAG,comm,MPI.Status)   
+                cache[status.tag]=copy(row_k)
+            end
+            @inbounds row_k.=cache[k]
+        end
+        # floyd method
+        for j in 1:n
+            for i in 1:m
+                @inbounds Cw[i,j] = min(Cw[i,j],Cw[i,k]+row_k[j])
+            end
+        end
+        # wait for all other processes in this round
+
+    end
     
 end
 
