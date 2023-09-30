@@ -70,6 +70,34 @@ function floyd_worker_barrier!(Cw,comm)
     # Your MPI.Send can use any tag that you wish #
     # Your MPI.Recv! can only use  MPI.ANY_SOURCE as source, and MPI.ANY_TAG as tag values #
     # You are only allowed to use MPI.Send, MPI.Recv! and MPI.Barrier for this part#
+    m,n = size(Cw)
+    nranks = MPI.Comm_size(comm)
+    rank = MPI.Comm_rank(comm)
+    start_row = m*rank+1
+    end_row = m*(rank+1)
+    for k in 1:n
+        # find correct row k first
+        row_k = similar(Cw,n)
+        if start_row<=k && k<=end_row
+            @inbounds row_k=Cw[k-start_row+1,:]
+            # send out the row_k
+            for proc in 0:(nranks-1)
+                if rank != proc
+                    MPI.Send(row_k,comm;dest=proc,tag=0)
+                end
+            end
+        else
+            MPI.Recv!(row_k,comm,source=MPI.ANY_SOURCE,tag=MPI.ANY_TAG)
+        end
+        # floyd method
+        for j in 1:n
+            for i in 1:m
+                @inbounds Cw[i,j] = min(Cw[i,j],Cw[i,k]+row_k[j])
+            end
+        end
+        # wait for all other processes in this round
+        MPI.Barrier(comm)
+    end
 
 end
 
