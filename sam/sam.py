@@ -91,11 +91,11 @@ def generate_cdf_picture(arr: List[int]):
 
 
 if __name__ == "__main__":
-    tmp = []
+    simulations = []
     for i in range(0, TEST_TIME):
         risk1 = generate_tri_distribution_random_number(0, 222000, 0)
         risk2 = generate_tri_distribution_random_number(5428000, 12972000, 8510000)
         risk3 = generate_tri_distribution_random_number(12470849, 13825852.7, 13000000)
-        tmp.append((risk1 + risk2 + risk3) / 1000000)
+        simulations.append((risk1 + risk2 + risk3) / 1000000)
     # generate_pdf_picture(tmp)
-    generate_cdf_picture(tmp)
+    generate_cdf_picture(simulations)

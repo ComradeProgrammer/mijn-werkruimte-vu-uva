@@ -152,7 +152,6 @@ function floyd_worker_status!(Cw,comm)
             for proc in 0:(nranks-1)
                 if rank != proc
                     MPI.Send(row_k,comm;dest=proc,tag=k)
-                    
                 end
             end
         else
@@ -160,7 +159,7 @@ function floyd_worker_status!(Cw,comm)
                 (_,status)=MPI.Recv!(row_k,MPI.ANY_SOURCE,MPI.ANY_TAG,comm,MPI.Status)   
                 cache[status.tag]=copy(row_k)
             end
-            @inbounds row_k.=cache[k]
+            @inbounds row_k=cache[k]
         end
         # floyd method
         for j in 1:n
