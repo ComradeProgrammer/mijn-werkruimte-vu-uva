@@ -116,7 +116,7 @@ function floyd_worker_bcast!(Cw,comm)
     for k in 1:n
         # find correct row k first
         if start_row<=k && k<=end_row
-            @inbounds row_k.=view(Cw,k-start_row+1,:)
+        @inbounds row_k.=view(Cw,k-start_row+1,:)
         end
         MPI.Bcast!(row_k,div(k-1,m),comm)
         # floyd method
