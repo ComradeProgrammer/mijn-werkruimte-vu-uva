@@ -21,7 +21,7 @@
 erlang(N,\lambda,\beta)=\frac{\frac{(\lambda\beta)^N}{N!}}{\sum_{i=0}^{N} \frac{(\lambda\beta)^i}{i!}}
   $$
 
-The result is 0.069
+The result is 0.0624
 
 ### I-3 Insensitivity on distribution of call duration
 
@@ -238,7 +238,7 @@ Nothing will change. Just like the answer we gave in the I-3, our calculation pr
 
 ## II Optimal distribution of channels over neighboring cells in mobile voice networks
 
-### II-1
+### II-13
 
 We define the Erlang-B formula is $erlang(n,\lambda, \beta)$.
 
@@ -277,7 +277,7 @@ We use the python script in  Appendix4 to solve this problem, and the result is
 
 $p=0.2226153912965448, \\x_1=15, x_2=22, x_3=13, x_4=20, x_5=17$
 
-### II-2
+### II-14
 
 This time the problem change to
 
@@ -289,7 +289,6 @@ minimize  \quad x_1+x_2+x_3+x_4+x_5
 $$
 
 Append code in Appendix 5 in Appendix 4, and we can solve the problem, the result is:
-
 
 The optimal allocation is 
 $ x_1=27, x_2=37, x_3=24, x_4=34, x_5=30$. 
