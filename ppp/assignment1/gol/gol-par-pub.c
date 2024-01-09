@@ -193,10 +193,13 @@ int IsSameWorld(struct PartialParallelWorld *world,
     if (old_world == NULL) {
         return 0;
     }
-    if (memcmp(world->cells_, old_world->cells_,
-               world->actual_col_num_ * world->actual_row_num_ * sizeof(int)) ==
-        0) {
-        return 1;
+    int i;
+    for (i = 1; i <= world->actual_row_num_ - 2; i++) {
+        if (memcmp(world->cells_[i] + 1, old_world->cells_[i] + 1,
+                   (world->actual_col_num_ - 2) * sizeof(int)) != 0) {
+            // this row is different
+            return 0;
+        }
     }
-    return 0;
+    return 1;
 }

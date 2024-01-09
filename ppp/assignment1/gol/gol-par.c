@@ -60,6 +60,9 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
     // the last element report_data[HISTORY-1] is the number of world count
     int report_data[HISTORY] = {0};
 
+    // This Irecv is for checking the message sent by worker 0, that we should
+    // quit now
+    int cycle = 0;
     for (world_iter = 1; world_iter < nsteps; world_iter++) {
         next_world = world_histories[world_iter % HISTORY];
         if (next_world == NULL) {
@@ -120,15 +123,13 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
         }
 
         // 4. check cycles and the world count and send them to worker0
-        int i;
         for (i = world_iter - 1; i > world_iter - HISTORY; i--) {
             struct PartialParallelWorld *prev_world = NULL;
             if (i >= 0) {
                 prev_world = world_histories[i % HISTORY];
             }
-            if (IsSameWorld(world, prev_world)) {
-                report_data[world_iter - i - 1] = 1;
-            }
+
+            report_data[world_iter - i - 1] = IsSameWorld(world, prev_world);
         }
         report_data[HISTORY - 1] = world_count;
         if (myid != 0) {
@@ -141,6 +142,7 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
             DPRINTF("Round %d, worker 0,report_data %d %d %d\n", world_iter,
                     report_data[0], report_data[1], report_data[2]);
             // worker 0 will gather the result
+            int j;
             for (i = 1; i < worker_num; i++) {
                 MPI_Recv(buf, HISTORY, MPI_INT, i, MPI_ANY_TAG, MPI_COMM_WORLD,
                          MPI_STATUS_IGNORE);
@@ -148,28 +150,28 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
                         world_iter, i, buf[0], buf[1], buf[2]);
                 // merge the world count
                 report_data[HISTORY - 1] += buf[HISTORY - 1];
-                int j;
                 // merge the cycle result
                 for (j = 0; j < HISTORY - 1; j++) {
-                    report_data[j] = (report_data[j] || buf[j]);
-                    // we have detected an cycle
-                    if (report_data[j]) {
-                        printf("world iteration %d is equal to iteration %d\n",
-                               world_iter - j - 1, world_iter);
-                        printf("Number of live cells = %d\n",
-                               report_data[HISTORY - 1]);
-                        // direct finish and quit
-                        MPI_Abort(MPI_COMM_WORLD, 0);
-                        return;
-                    }
+                    report_data[j] = (report_data[j] && buf[j]);
                 }
             }
             DPRINTF("Round %d, Total,report_data %d %d %d\n", world_iter,
                     report_data[0], report_data[1], report_data[2]);
+            for (j = 0; j < HISTORY - 1; j++) {
+                if (report_data[j]) {
+                    // we have detected a cycle
+                    printf("world iteration %d is equal to iteration %d\n",
+                           world_iter, world_iter - j - 1);
+                    cycle = 1;
+                    break;
+                }
+            }
         }
-        // and report this to worker 0
-
-        MPI_Barrier(MPI_COMM_WORLD);
+        // check whether we should finish
+        MPI_Bcast(&cycle, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        if (cycle) {
+            break;
+        }
     }
     double end_time = TimeSecs();
     double elapsed_time = end_time - start_time;
