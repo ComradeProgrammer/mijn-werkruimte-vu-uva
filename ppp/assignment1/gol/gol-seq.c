@@ -2,7 +2,8 @@
 
 Conway's Game of Life
 
-Based on https://web.cs.dal.ca/~arc/teaching/CS4125/2014winter/Assignment2/Assignment2.html
+Based on
+https://web.cs.dal.ca/~arc/teaching/CS4125/2014winter/Assignment2/Assignment2.html
 
 ************************/
 
@@ -12,8 +13,8 @@ Based on https://web.cs.dal.ca/~arc/teaching/CS4125/2014winter/Assignment2/Assig
 #include <sys/time.h>
 
 typedef struct {
-   int rows, cols;
-   int **cells;
+    int rows, cols;
+    int **cells;
 } world;
 
 /* keep short history since we want to detect simple cycles */
@@ -34,7 +35,6 @@ static int random_world = 0;
 #else
 static int random_world = 1;
 #endif
-
 static char *start_world[] = {
     /* Gosper glider gun */
     /* example from https://bitstorm.org/gameoflife/ */
@@ -62,9 +62,7 @@ static char *start_world[] = {
     "..........................................",
 };
 
-static void
-world_init_fixed(world *world)
-{
+static void world_init_fixed(world *world) {
     int **cells = world->cells;
     int row, col;
 
@@ -82,9 +80,7 @@ world_init_fixed(world *world)
     }
 }
 
-static void
-world_init_random(world *world)
-{
+static void world_init_random(world *world) {
     int **cells = world->cells;
     int row, col;
 
@@ -104,9 +100,7 @@ world_init_random(world *world)
     }
 }
 
-static void
-world_print(world *world)
-{
+static void world_print(world *world) {
     int **cells = world->cells;
     int row, col;
 
@@ -122,9 +116,7 @@ world_print(world *world)
     }
 }
 
-static int
-world_count(world *world)
-{
+static int world_count(world *world) {
     int **cells = world->cells;
     int isum;
     int row, col;
@@ -140,9 +132,7 @@ world_count(world *world)
 }
 
 /* Take world wrap-around into account: */
-static void
-world_border_wrap(world *world)
-{
+static void world_border_wrap(world *world) {
     int **cells = world->cells;
     int row, col;
 
@@ -159,13 +149,10 @@ world_border_wrap(world *world)
     }
 }
 
-
 // update board for next timestep
 // rows/cols params are the base rows/cols
 // excluding the surrounding 1-cell wraparound border
-static void
-world_timestep(world *old, world *new)
-{
+static void world_timestep(world *old, world *new) {
     int **cells = old->cells;
     int row, col;
 
@@ -181,9 +168,10 @@ world_timestep(world *old, world *new)
             col_m = col - 1;
             col_p = col + 1;
 
-            nsum = cells[row_p][col_m] + cells[row_p][col] + cells[row_p][col_p]
-                 + cells[row  ][col_m]                     + cells[row  ][col_p]
-                 + cells[row_m][col_m] + cells[row_m][col] + cells[row_m][col_p];
+            nsum = cells[row_p][col_m] + cells[row_p][col] +
+                   cells[row_p][col_p] + cells[row][col_m] + cells[row][col_p] +
+                   cells[row_m][col_m] + cells[row_m][col] +
+                   cells[row_m][col_p];
 
             switch (nsum) {
             case 3:
@@ -205,14 +193,12 @@ world_timestep(world *old, world *new)
     }
 }
 
-
-static int
-world_check_cycles(world *cur_world, int iter)
-{
+static int world_check_cycles(world *cur_world, int iter) {
     int i;
 
     /* This version re-applies the border wraps so they are consistent with
-     * the respective world states, and we can just compare the full world arrays.
+     * the respective world states, and we can just compare the full world
+     * arrays.
      */
     world_border_wrap(cur_world);
     for (i = iter - 1; i >= 0 && i > iter - HISTORY; i--) {
@@ -229,23 +215,22 @@ world_check_cycles(world *cur_world, int iter)
     return 0;
 }
 
-static int **
-alloc_2d_int_array(int nrows, int ncolumns)
-{
+static int **alloc_2d_int_array(int nrows, int ncolumns) {
     int **array;
     int row;
 
-    /* version that keeps the 2d data contiguous, can help caching and slicing across dimensions */
+    /* version that keeps the 2d data contiguous, can help caching and slicing
+     * across dimensions */
     array = malloc(nrows * sizeof(int *));
     if (array == NULL) {
-       fprintf(stderr, "out of memory\n");
-       exit(1);
+        fprintf(stderr, "out of memory\n");
+        exit(1);
     }
 
     array[0] = malloc(nrows * ncolumns * sizeof(int));
     if (array[0] == NULL) {
-       fprintf(stderr, "out of memory\n");
-       exit(1);
+        fprintf(stderr, "out of memory\n");
+        exit(1);
     }
 
     /* memory layout is row-major */
@@ -256,9 +241,7 @@ alloc_2d_int_array(int nrows, int ncolumns)
     return array;
 }
 
-static double
-time_secs(void)
-{
+static double time_secs(void) {
     struct timeval tv;
 
     if (gettimeofday(&tv, 0) != 0) {
@@ -269,15 +252,14 @@ time_secs(void)
     return tv.tv_sec + (tv.tv_usec / 1000000.0);
 }
 
-int
-main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     int h, nsteps;
     double start_time, end_time, elapsed_time;
 
     /* Get Parameters */
     if (argc != 6) {
-        fprintf(stderr, "Usage: %s rows cols steps worldstep cellstep\n", argv[0]);
+        fprintf(stderr, "Usage: %s rows cols steps worldstep cellstep\n",
+                argv[0]);
         exit(1);
     }
     world_rows = atoi(argv[1]);
@@ -286,7 +268,8 @@ main(int argc, char *argv[])
     print_world = atoi(argv[4]);
     print_cells = atoi(argv[5]);
 
-    /* initialize worlds, when allocating arrays, add 2 for ghost cells in both directorions */
+    /* initialize worlds, when allocating arrays, add 2 for ghost cells in both
+     * directorions */
     for (h = 0; h < HISTORY; h++) {
         worlds[h].rows = world_rows;
         worlds[h].cols = world_cols;
@@ -321,11 +304,13 @@ main(int argc, char *argv[])
 
         cycle = world_check_cycles(cur_world, world_iter);
 
-        if (print_cells > 0 && (world_iter % print_cells) == (print_cells - 1)) {
+        if (print_cells > 0 &&
+            (world_iter % print_cells) == (print_cells - 1)) {
             printf("%d: %d live cells\n", world_iter, world_count(cur_world));
         }
 
-        if (print_world > 0 && (cycle || (world_iter % print_world) == (print_world - 1))) {
+        if (print_world > 0 &&
+            (cycle || (world_iter % print_world) == (print_world - 1))) {
             printf("\nat time step %d:\n\n", world_iter);
             world_print(cur_world);
         }

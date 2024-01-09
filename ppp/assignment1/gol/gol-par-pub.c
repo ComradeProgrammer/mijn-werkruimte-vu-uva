@@ -46,6 +46,7 @@ NewPartialParallelWorld(int block_id, int total_block_num, int total_row_num,
 
     for (i = 0; i < res->actual_row_num_; i++) {
         res->cells_[i] = malloc(sizeof(int) * res->actual_col_num_);
+        memset(res->cells_[i], 0, sizeof(int) * res->actual_col_num_);
     }
 
     return res;
@@ -118,9 +119,9 @@ void ParallelWorldInitFixed(struct PartialParallelWorld *world) {
     for (row = 0; row < world->total_row_num_; row++) {
         for (col = 0; col < world->actual_col_num_ - 2; col++) {
             int value = 0;
-            if ((row <= sizeof(start_world) / sizeof(char *)) &&
-                (col <= strlen(start_world[row - 1]))) {
-                value = (start_world[row - 1][col - 1] != '.');
+            if ((row < sizeof(start_world) / sizeof(char *)) &&
+                (col < strlen(start_world[row - 1]))) {
+                value = (start_world[row][col] != '.');
             }
             // we need to decide whether we need this row, and where we should
             // insert them
@@ -151,18 +152,8 @@ void ParallelWorldInitFixed(struct PartialParallelWorld *world) {
 void PrintPartialWorld(struct PartialParallelWorld *world) {
     int **cells = world->cells_;
     int row, col;
-    // for (row = 1; row <= world->actual_row_num_ - 2; row++) {
-    //     for (col = 1; col <= world->actual_col_num_ - 2; col++) {
-    //         if (cells[row][col]) {
-    //             printf("O");
-    //         } else {
-    //             printf(" ");
-    //         }
-    //     }
-    //     printf("\n");
-    // }
-    for (row = 0; row <= world->actual_row_num_ - 1; row++) {
-        for (col = 0; col <= world->actual_col_num_ - 1; col++) {
+    for (row = 1; row <= world->actual_row_num_ - 2; row++) {
+        for (col = 1; col <= world->actual_col_num_ - 2; col++) {
             if (cells[row][col]) {
                 printf("O");
             } else {
@@ -171,4 +162,41 @@ void PrintPartialWorld(struct PartialParallelWorld *world) {
         }
         printf("\n");
     }
+}
+
+double TimeSecs() {
+    struct timeval tv;
+    if (gettimeofday(&tv, 0) != 0) {
+        fprintf(stderr, "could not do timing\n");
+        exit(1);
+    }
+    return tv.tv_sec + (tv.tv_usec / 1000000.0);
+}
+
+int WorldCount(struct PartialParallelWorld *world) {
+    int **cells = world->cells_;
+    int isum;
+    int row, col;
+
+    isum = 0;
+    for (row = 1; row <= world->actual_row_num_ - 2; row++) {
+        for (col = 1; col <= world->actual_col_num_ - 2; col++) {
+            isum = isum + cells[row][col];
+        }
+    }
+
+    return isum;
+}
+
+int IsSameWorld(struct PartialParallelWorld *world,
+                struct PartialParallelWorld *old_world) {
+    if (old_world == NULL) {
+        return 0;
+    }
+    if (memcmp(world->cells_, old_world->cells_,
+               world->actual_col_num_ * world->actual_row_num_ * sizeof(int)) ==
+        0) {
+        return 1;
+    }
+    return 0;
 }

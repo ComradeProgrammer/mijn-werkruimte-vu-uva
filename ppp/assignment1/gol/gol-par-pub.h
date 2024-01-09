@@ -5,6 +5,19 @@
 #include <string.h>
 #include <sys/time.h>
 
+// Macro constants
+// keep short history since we want to detect simple cycles
+#define HISTORY 3
+
+// test output kit
+#ifdef DEBUG
+#define DPRINTF(...) printf(__VA_ARGS__)
+#else
+#define DPRINTF(...)
+#endif
+
+// PartialParallelWorld is a part of world which is assigned to one single
+// process
 struct PartialParallelWorld {
     // global information about the partition
     int block_id_;
@@ -17,16 +30,19 @@ struct PartialParallelWorld {
     int actual_col_num_;
     int **cells_;
 };
-// keep short history since we want to detect simple cycles
-#define HISTORY 3
 
 struct PartialParallelWorld *
 NewPartialParallelWorld(int block_id, int total_block_num, int total_row_num,
                         int row_num, int column_num);
 void BorderWrap(struct PartialParallelWorld *world);
+int WorldCount(struct PartialParallelWorld *world);
 void ParallelWorldInitRandom(struct PartialParallelWorld *world);
 void ParallelWorldInitFixed(struct PartialParallelWorld *world);
 void PrintPartialWorld(struct PartialParallelWorld *world);
+int IsSameWorld(struct PartialParallelWorld *world,
+                struct PartialParallelWorld *old_world);
+
+double TimeSecs();
 
 #define TIME_STEP_SINGLE_ELEMEMT(row, col, old, new)                           \
     do {                                                                       \
