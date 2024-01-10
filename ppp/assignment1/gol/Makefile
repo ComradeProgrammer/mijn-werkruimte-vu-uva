@@ -10,8 +10,8 @@ gol-par: gol-par.c gol-par-pub.c
 	mpicc -Wall -O3 -o gol-par gol-par.c gol-par-pub.c -lm 
 # mpicc -Wall -O3 -o gol-par gol-par.c gol-par-pub.c -lm -DFIXED_WORLD -DDEBUG
 
-gol-par-bonus1: gol-par-bonus1.c
-	mpicc -Wall -O3 -o gol-par-bonus1 gol-par-bonus1.c -lm
+gol-par-bonus1: gol-par-bonus1.c  gol-par-pub.c
+	mpicc -Wall -O3 -o gol-par-bonus1 gol-par-bonus1.c gol-par-pub.c -lm
 
 gol-par-bonus2: gol-par-bonus2.c
 	mpicc -Wall -O3 -o gol-par-bonus2 gol-par-bonus2.c -lm
