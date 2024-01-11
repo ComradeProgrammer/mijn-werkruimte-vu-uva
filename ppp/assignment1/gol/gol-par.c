@@ -27,11 +27,11 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
         world_histories[i] = NULL;
     }
     // create the PartialParallelWorld object
-    int row_per_block =
-        world_rows / worker_num + ((world_rows % worker_num) != 0);
-    int row_num = (myid == worker_num - 1)
-                      ? (world_rows - (worker_num - 1) * row_per_block)
-                      : row_per_block;
+    int row_per_block = world_rows / worker_num;
+    int row_num = row_per_block;
+    if (myid < world_rows % worker_num) {
+        row_num++;
+    }
 
     struct PartialParallelWorld *world = NewPartialParallelWorld(
         myid, worker_num, world_rows, row_num, world_cols);
@@ -87,12 +87,12 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
         MPI_Request request2;
         MPI_Status status2;
         int *data2 = world->cells_[world->actual_row_num_ - 2] + 1;
-        MPI_Isend(data2, world_cols, MPI_INT, target_worker2, world_iter,
-                  MPI_COMM_WORLD, &request2);
+        MPI_Isend(data2, world_cols, MPI_INT, target_worker2,
+                  (world_iter | (1 << 30)), MPI_COMM_WORLD, &request2);
 
         // 1.3 then we also need to receive the previous row from previous block
         MPI_Recv(world->cells_[0] + 1, world_cols, MPI_INT, target_worker1,
-                 world_iter, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                 (world_iter | (1 << 30)), MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         MPI_Recv(world->cells_[world->actual_row_num_ - 1] + 1, world_cols,
                  MPI_INT, target_worker2, world_iter, MPI_COMM_WORLD,
                  MPI_STATUS_IGNORE);
