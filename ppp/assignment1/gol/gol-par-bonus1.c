@@ -95,17 +95,23 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
             ParallelWorldTimeStepOnRow(world, next_world, i);
         }
         // 1.3 then we also need to receive the previous row from previous block
-        MPI_Recv(world->cells_[0] + 1, world_cols, MPI_INT, target_worker1,
-                 (world_iter | (1 << 30)), MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(world->cells_[world->actual_row_num_ - 1] + 1, world_cols,
-                 MPI_INT, target_worker2, world_iter, MPI_COMM_WORLD,
-                 MPI_STATUS_IGNORE);
+        MPI_Request request3;
+        MPI_Status status3;
+        MPI_Irecv(world->cells_[0] + 1, world_cols, MPI_INT, target_worker1,
+                  (world_iter | (1 << 30)), MPI_COMM_WORLD, &request3);
+        MPI_Request request4;
+        MPI_Status status4;
+        MPI_Irecv(world->cells_[world->actual_row_num_ - 1] + 1, world_cols,
+                  MPI_INT, target_worker2, world_iter, MPI_COMM_WORLD,
+                  &request4);
 
         BorderWrap(world);
 
         // 1.4 we need to wait for the finish of sending
         MPI_Wait(&request1, &status1);
         MPI_Wait(&request2, &status2);
+        MPI_Wait(&request3, &status3);
+        MPI_Wait(&request4, &status4);
 
         // 2. Start the calculation of this iteration
         // 2.1 wrap the world
