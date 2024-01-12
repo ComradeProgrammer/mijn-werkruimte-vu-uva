@@ -219,9 +219,9 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
     MPI_Comm_size(MPI_COMM_WORLD, &worker_num);
 
-    char buf[20];
-    sprintf(buf, "%d.txt", myid);
-    freopen(buf, "w", stdout);
+    // char buf[20];
+    // sprintf(buf, "%d.txt", myid);
+    // freopen(buf, "w", stdout);
     ParallelWorldStart(world_rows, world_cols, nsteps, print_world, print_cells,
                        myid, worker_num);
     MPI_Finalize();
