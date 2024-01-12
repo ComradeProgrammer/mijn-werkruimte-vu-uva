@@ -90,10 +90,6 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
         MPI_Isend(data2, world_cols, MPI_INT, target_worker2,
                   (world_iter | (1 << 30)), MPI_COMM_WORLD, &request2);
 
-        // latency hiding: calculate non-edge row first
-        for (i = 2; i <= world->actual_row_num_ - 3; i++) {
-            ParallelWorldTimeStepOnRow(world, next_world, i);
-        }
         // 1.3 then we also need to receive the previous row from previous block
         MPI_Request request3;
         MPI_Status status3;
@@ -106,6 +102,10 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
                   &request4);
 
         BorderWrap(world);
+        // latency hiding: calculate non-edge row first
+        for (i = 2; i <= world->actual_row_num_ - 3; i++) {
+            ParallelWorldTimeStepOnRow(world, next_world, i);
+        }
 
         // 1.4 we need to wait for the finish of sending
         MPI_Wait(&request1, &status1);
