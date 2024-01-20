@@ -245,10 +245,13 @@ function game_parallel_impl(chnl_anim,fn,params)
     check_input(m,n,M,N)
     ftrs_chnls = create_channels(M,N)
     chnl_world = RemoteChannel(()->Channel{Any}(1))
-    channels = (;ftrs_chnls,chnl_world)
+    chnl_ides=Matrix{Any}(undef,M,N)
     ftrs_results = Matrix{Future}(undef,M,N)
     for J in 1:N
         for I in 1:M
+            chnl_ide=RemoteChannel(()->Channel{Any}()) 
+            chnl_ides[I,J]=chnl_ide
+            channels = (;ftrs_chnls,chnl_world,chnl_ide)
             p = LinearIndices(ftrs_chnls)[I,J]
             w = workers()[p]
             ftrs_results[I,J] = @spawnat w begin
@@ -258,6 +261,8 @@ function game_parallel_impl(chnl_anim,fn,params)
     end
     final_step = steps
     for istep in 1:steps
+        identical=true
+        identical2=true
         if worldstep != 0 && (istep % worldstep) == 0
             a = Matrix{Int32}(undef,m,n)
             for _ in 1:(M*N)
@@ -265,6 +270,19 @@ function game_parallel_impl(chnl_anim,fn,params)
                 a[my_rows,my_cols] = my_a
             end
             put!(chnl_anim,a)
+        end
+
+        for J in 1:N
+            for I in 1:M
+                ide,ide2=take!(chnl_ides[I,J])
+                identical=identical&& ide
+                identical2=identical2&& ide2
+            end
+        end
+
+        if identical || identical2
+            close(chnl_world)
+            break
         end
     end
     wall_time = fetch.(ftrs_results[:])
@@ -289,9 +307,24 @@ function game_parallel_impl(chnl_anim,fn,params)
     @info "Results file has been generated: $fn_json"
 end
 
+function step_send!(a,send_chnls)
+
+    put!(send_chnls[1,1],hcat(a[2,2]))# NW
+    put!(send_chnls[1,2],hcat(a[2,2:end-1]))# N
+    put!(send_chnls[1,3],hcat(a[2,end-1]))# NE
+
+    put!(send_chnls[2,1],hcat(a[2:end-1,2])) #W
+    put!(send_chnls[2,3],hcat(a[2:end-1,end-1]))#W
+
+    put!(send_chnls[3,1],hcat(a[end-1,2]))# SW
+    put!(send_chnls[3,2],hcat(a[end-1,2:end-1]))# S
+    put!(send_chnls[3,3],hcat(a[end-1,end-1]))# SE
+
+end
+
 function game_worker(I,J,fn,params,channels)
     (;init_fun,m,n,M,N,steps,worldstep) = params
-    (;ftrs_chnls,chnl_world) = channels
+    (;ftrs_chnls,chnl_world,chnl_ide) = channels
     chnls_snd, chnls_rcv = create_chnls_snd_and_rcv(M,N,I,J,ftrs_chnls)
     my_rows = local_range(I,m,M)
     my_cols = local_range(J,n,N)
@@ -300,19 +333,34 @@ function game_worker(I,J,fn,params,channels)
     a = Matrix{Int32}(undef,my_m+2,my_n+2)
     initial_coords = init_fun()
     init!(initial_coords,a,my_rows,my_cols)
+    # we need to send edge information at initial stage
+    # println("start, ",a)
+    step_send!(a,chnls_snd)
     a_new = similar(a)
     a_history = [similar(a),similar(a)]
     wall_time = time()
     for istep in 1:steps
         step_worker!(a_new,a,chnls_snd,chnls_rcv)
+        # check whether it is identical
+        identical=(view(a_new,2:size(a,1)-1,2:size(a,2)-1)==view(a,2:size(a,1)-1,2:size(a,2)-1))
+        identical2=(view(a_new,2:size(a,1)-1,2:size(a,2)-1)==view(a_history[1],2:size(a,1)-1,2:size(a,2)-1))
         tmp = a
         a = a_new
         a_new = a_history[2]
         a_history[2] = a_history[1]
         a_history[1] = tmp
-        if worldstep != 0 && (istep % worldstep) == 0
-            put!(chnl_world,(a[2:end-1,2:end-1],my_rows,my_cols))
+        if !isopen(chnl_world)
+            break
         end
+
+        try
+            if worldstep != 0 && (istep % worldstep) == 0
+                put!(chnl_world,(a[2:end-1,2:end-1],my_rows,my_cols))
+            end
+        catch
+            break
+        end
+        put!(chnl_ide,(identical,identical2))
     end
     wall_time = time()-wall_time
     return wall_time
@@ -365,12 +413,41 @@ function create_chnls_snd_and_rcv(M,N,I,J,ftrs_chnls)
     chnls_rcv = fetch(ftrs_chnls[I,J])
     chnls_snd = similar(chnls_rcv)
     # Implement here
-    
+    dx=[-1,0,1,-1,1,-1,0,1]
+    dy=[-1,-1,-1,0,0,1,1,1]
+    for i in 1:size(dx)[1]
+        neighbor_x=(I+dx[i])%M
+        if neighbor_x<=0
+            neighbor_x+=M
+        end
+        neighbor_y=(J+dy[i])%N
+        if neighbor_y<=0
+            neighbor_y+=N
+        end
+        chnls_neighbor_rcv = fetch(ftrs_chnls[neighbor_x,neighbor_y])
+        chnls_snd[2+dx[i],2+dy[i]]=chnls_neighbor_rcv[2-dx[i],2-dy[i]]
+    end
     chnls_snd, chnls_rcv
 end
 
 function step_worker!(a_new,a,chnls_snd,chnls_rcv)
     # Implement here
+    # read from the channels
+    #println("a: ",a)
+    a[1,1]=take!(chnls_rcv[1,1])[1]# NW
+    a[1,2:end-1]=take!(chnls_rcv[1,2])[1:end] # N
+    a[1,end]=take!(chnls_rcv[1,3])[1]# NE
+    a[2:end-1,1]=take!(chnls_rcv[2,1])[1:end] #W
+    a[2:end-1,end]=take!(chnls_rcv[2,3])[1:end] #E
+    a[end,1]=take!(chnls_rcv[3,1])[1]# SW
+    a[end,2:end-1]=take!(chnls_rcv[3,2])[1:end] # S
+    a[end,end]=take!(chnls_rcv[3,3])[1]# SE
+    # println("a: ",a)
+    # calculate
+    update!(a_new,a)
+    step_send!(a_new,chnls_snd)
+    # println("a_new: ",a_new)
+
 end
 
 function game_check(init_fun,m,n,M,N,nodes,steps,worldstep,irun=1)
@@ -393,10 +470,17 @@ function game_check(init_fun,m,n,M,N,nodes,steps,worldstep,irun=1)
             fn = "test_parallel_$(nameof(init_fun))_$(m)_$(n)_$(M)_$(N)_$(steps)_$(worldstep)_run_$irun"
             game_parallel_impl(chnl_parallel,fn,params)
         finally
-            close(chnl_parallel)
+            if isopen(chnl_parallel)
+                close(chnl_parallel)
+            end
         end
     end
     a_parallel = [ copy(i) for i in chnl_parallel ]
     wait(t)
+    #println("a_parallel ",a_parallel)
+    #println("a_parallel ",size(a_parallel))
+    #println("a_serial ",a_serial)
+    #println("a_serial ",size(a_serial))
+
     a_parallel == a_serial
 end
