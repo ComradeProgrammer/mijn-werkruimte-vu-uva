@@ -176,7 +176,8 @@ void ParallelWorldStart(int world_rows, int world_cols, int nsteps,
     double end_time = TimeSecs();
     double elapsed_time = end_time - start_time;
     /*  Iterations are done; sum the number of live cells */
-    printf("Number of live cells = %d\n", report_data[HISTORY - 1]);
+    if(myid==0)
+        printf("Number of live cells = %d\n", report_data[HISTORY - 1]);
     fprintf(stderr, "Worker %d Game of Life took %10.3f seconds\n", myid,
             elapsed_time);
 

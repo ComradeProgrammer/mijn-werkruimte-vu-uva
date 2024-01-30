@@ -308,18 +308,20 @@ function game_parallel_impl(chnl_anim,fn,params)
 end
 
 function step_send!(a,send_chnls)
+    x_size=size(a,1)
+    y_size=size(a,2)
+    @sync begin
+    @async @inbounds put!(send_chnls[1,1],view(a,2,2))# NW
+    @async @inbounds put!(send_chnls[1,2],view(a,2,2:y_size-1))# N
+    @async @inbounds put!(send_chnls[1,3],view(a,2,y_size-1))# NE
 
-    put!(send_chnls[1,1],hcat(a[2,2]))# NW
-    put!(send_chnls[1,2],hcat(a[2,2:end-1]))# N
-    put!(send_chnls[1,3],hcat(a[2,end-1]))# NE
+    @async @inbounds put!(send_chnls[2,1],view(a,2:x_size-1,2)) #W
+    @async @inbounds put!(send_chnls[2,3],view(a,2:x_size-1,y_size-1))#W
 
-    put!(send_chnls[2,1],hcat(a[2:end-1,2])) #W
-    put!(send_chnls[2,3],hcat(a[2:end-1,end-1]))#W
-
-    put!(send_chnls[3,1],hcat(a[end-1,2]))# SW
-    put!(send_chnls[3,2],hcat(a[end-1,2:end-1]))# S
-    put!(send_chnls[3,3],hcat(a[end-1,end-1]))# SE
-
+    @async @inbounds put!(send_chnls[3,1],view(a,x_size-1,2))# SW
+    @async @inbounds put!(send_chnls[3,2],view(a,x_size-1,2:y_size-1))# S
+    @async @inbounds put!(send_chnls[3,3],view(a,x_size-1,y_size-1))# SE
+    end
 end
 
 function game_worker(I,J,fn,params,channels)
@@ -342,8 +344,11 @@ function game_worker(I,J,fn,params,channels)
     for istep in 1:steps
         step_worker!(a_new,a,chnls_snd,chnls_rcv)
         # check whether it is identical
-        identical=(view(a_new,2:size(a,1)-1,2:size(a,2)-1)==view(a,2:size(a,1)-1,2:size(a,2)-1))
-        identical2=(view(a_new,2:size(a,1)-1,2:size(a,2)-1)==view(a_history[1],2:size(a,1)-1,2:size(a,2)-1))
+        identical= interior_cells_are_equal(a_new,a) 
+        identical2= interior_cells_are_equal(a_new,a_history[1])
+
+        #identical=(view(a_new,2:size(a,1)-1,2:size(a,2)-1)==view(a,2:size(a,1)-1,2:size(a,2)-1))
+        #identical2=(view(a_new,2:size(a,1)-1,2:size(a,2)-1)==view(a_history[1],2:size(a,1)-1,2:size(a,2)-1))
         tmp = a
         a = a_new
         a_new = a_history[2]
@@ -386,7 +391,7 @@ function create_channels(M,N)
             w = workers()[p]
             ftrs_chnls[I,J] = @spawnat w begin
                 buffer = 10
-                f = () -> Channel{Matrix{Int32}}(buffer)
+                f = () -> Channel{Any}(buffer)
                 [RemoteChannel(f) for i in -1:1, j in -1:1]
             end
         end
@@ -434,17 +439,36 @@ function step_worker!(a_new,a,chnls_snd,chnls_rcv)
     # Implement here
     # read from the channels
     #println("a: ",a)
-    a[1,1]=take!(chnls_rcv[1,1])[1]# NW
-    a[1,2:end-1]=take!(chnls_rcv[1,2])[1:end] # N
-    a[1,end]=take!(chnls_rcv[1,3])[1]# NE
-    a[2:end-1,1]=take!(chnls_rcv[2,1])[1:end] #W
-    a[2:end-1,end]=take!(chnls_rcv[2,3])[1:end] #E
-    a[end,1]=take!(chnls_rcv[3,1])[1]# SW
-    a[end,2:end-1]=take!(chnls_rcv[3,2])[1:end] # S
-    a[end,end]=take!(chnls_rcv[3,3])[1]# SE
+    @sync begin
+        @async @inbounds a[1,1]=take!(chnls_rcv[1,1])[1]# NW
+        @async @inbounds a[1,2:end-1]=take!(chnls_rcv[1,2])[1:end] # N
+        @async @inbounds a[1,end]=take!(chnls_rcv[1,3])[1]# NE
+        @async @inbounds a[2:end-1,1]=take!(chnls_rcv[2,1])[1:end] #W
+        @async @inbounds a[2:end-1,end]=take!(chnls_rcv[2,3])[1:end] #E
+        @async @inbounds a[end,1]=take!(chnls_rcv[3,1])[1]# SW
+        @async @inbounds a[end,2:end-1]=take!(chnls_rcv[3,2])[1:end] # S
+        @async @inbounds a[end,end]=take!(chnls_rcv[3,3])[1]# SE
+        @async begin
+            @inbounds for j in 3:(size(a,2)-2)
+                for i in 3:(size(a,1)-2)
+                    a_new[i,j] = rules(a,i,j)
+                end
+            end
+        end
+    end
     # println("a: ",a)
     # calculate
-    update!(a_new,a)
+    #update!(a_new,a)
+    @inbounds for j in 2:(size(a,2)-1)
+        for i in [2,size(a,1)-1]
+            a_new[i,j] = rules(a,i,j)
+        end
+    end
+    @inbounds for j in [2,size(a,2)-1]
+        for i in 2:(size(a,1)-1)
+            a_new[i,j] = rules(a,i,j)
+        end
+    end
     step_send!(a_new,chnls_snd)
     # println("a_new: ",a_new)
 
